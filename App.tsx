@@ -59,13 +59,9 @@ function App() {
     const loadData = async () => {
       try {
         const loadedFiles = await db.getAllFiles();
-        
-        // Update connection status based on what the DB service decided
         setStorageMode(db.getConnectionStatus());
-
         setFiles(loadedFiles);
         
-        // Chat is always fresh (Session based)
         const welcomeMsg: Message = {
           id: 'welcome',
           role: 'model',
@@ -73,7 +69,6 @@ function App() {
           timestamp: Date.now()
         };
         setMessages([welcomeMsg]);
-        
       } catch (error) {
         console.error("Failed to load data from DB:", error);
       }
@@ -109,7 +104,6 @@ function App() {
     }
   };
 
-  // Initial file handler from Uploader (Step 1)
   const handleFileSelected = (newFiles: UploadedFile[]) => {
     if (newFiles.length > 0) {
       setPendingFile(newFiles[0]);
@@ -123,7 +117,6 @@ function App() {
     }
   };
 
-  // Save pending file with metadata (Step 2)
   const savePendingFile = async () => {
     if (!pendingFile) return;
 
@@ -134,7 +127,6 @@ function App() {
 
     try {
       await db.addFile(fileWithMetadata);
-      // Check status again in case we switched mode
       setStorageMode(db.getConnectionStatus());
       
       setFiles(prev => [...prev, fileWithMetadata]);
@@ -169,8 +161,6 @@ function App() {
     setInputValue('');
     setIsProcessing(true);
     
-    // We do NOT save messages to DB anymore (Session only)
-
     const loadingId = crypto.randomUUID();
     const loadingMsg: Message = {
       id: loadingId,
@@ -196,10 +186,12 @@ function App() {
       setMessages(prev => prev.map(m => m.id === loadingId ? finalModelMsg : m));
 
     } catch (error) {
+      // Este catch agora é menos provável de ser ativado, pois o geminiService trata a maioria dos erros
+      // e retorna uma mensagem de erro formatada.
       const errorMsg: Message = {
         id: loadingId,
         role: 'model',
-        text: "Desculpe, ocorreu um erro ao se conectar com o modelo ou processar os dados.",
+        text: "Desculpe, ocorreu um erro inesperado na aplicação.",
         timestamp: Date.now()
       };
       setMessages(prev => prev.map(m => m.id === loadingId ? errorMsg : m));
@@ -246,9 +238,8 @@ function App() {
       <header className="h-16 border-b border-slate-800 bg-slate-900 flex items-center justify-between px-6 shrink-0 relative z-10 shadow-md">
         <div className="flex items-center gap-3">
           <div className="relative w-10 h-10 flex items-center justify-center">
-            {/* Certifique-se que o arquivo brasao.png está na pasta 'public' */}
-            <img 
-              src="/brasao.png" 
+             <img 
+              src="https://drive.google.com/drive-viewer/AKGpihbQ4aIMgJE4xa6C4P0e2Ifn4rtCrzRFhV4An3bkRRgFn8zaiUn75N_wEJlKk-AOrjLrLVKYhXiBNPU5RQ7u8ZdffHiJ8vM-eg=w1960-h1854?auditContext=forDisplay" 
               alt="Brasão" 
               className="w-full h-full object-contain drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]"
             />
@@ -277,7 +268,6 @@ function App() {
           >
             {isAuthenticated ? <Database size={16} /> : <Lock size={16} />}
             <span className="hidden md:inline">Dados</span>
-            {/* Indicador laranja sem número */}
             {files.length > 0 && (
               <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-amber-500 shadow-sm animate-pulse"></span>
             )}
