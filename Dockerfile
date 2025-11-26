@@ -1,28 +1,31 @@
-# Usa imagem leve do Node.js 20
+# Usa uma imagem estável do Node.js
 FROM node:20-alpine
 
-# Diretório de trabalho
+# Define o diretório de trabalho
 WORKDIR /app
 
-# Copia arquivos de dependência
+# Copia os arquivos de dependência primeiro (para cache do Docker)
 COPY package*.json ./
 
-# Instala todas as dependências (produção + dev)
+# Instala TODAS as dependências (dev + prod) necessárias para o build
+# O cache clean força a atualização dos tipos
 RUN npm cache clean --force && npm install
 
-# Copia todo o código fonte
+# Copia o restante do código
 COPY . .
 
-# Build do React/Vite
+# Variável de ambiente para o build time
+ARG API_KEY
+ENV API_KEY=$API_KEY
+
+# Executa o build do React (Gera a pasta 'dist')
 RUN npm run build
 
-# Porta do container fornecida pelo Easypanel
-ENV PORT=80
-EXPOSE $PORT
+# Remove dependências de dev para deixar a imagem final mais leve (opcional, mas recomendado)
+# RUN npm prune --production 
 
-# Diretório para armazenar dados (DB e uploads)
-ENV DATA_DIR=/app/data
-VOLUME ["/app/data"]
+# Expõe a porta do servidor
+EXPOSE 3001
 
-# Comando principal: Node rodando em foreground
-CMD ["node", "server.js"]
+# Inicia o servidor Node
+CMD ["npm", "start"]
