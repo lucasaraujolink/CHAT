@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, FileText, Trash2, Plus, BarChart3, Database, MessageSquare, ArrowLeft, Save, Upload, Info, Tag, Lock, X, Cloud, CloudOff } from 'lucide-react';
+import { Virtuoso, VirtuosoHandle } from 'react-virtuoso'; // Import da virtualização
 import { FileUploader } from './components/FileUploader';
 import { ChatMessage } from './components/ChatMessage';
 import { UploadedFile, Message, FileType, FileCategory } from './types';
@@ -28,7 +29,9 @@ function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // Ref para controlar o scroll virtualizado
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
   
   // Storage Status
   const [storageMode, setStorageMode] = useState<'cloud' | 'local'>('local');
@@ -59,9 +62,13 @@ function App() {
     const loadData = async () => {
       try {
         const loadedFiles = await db.getAllFiles();
+        
+        // Update connection status based on what the DB service decided
         setStorageMode(db.getConnectionStatus());
+
         setFiles(loadedFiles);
         
+        // Chat is always fresh (Session based)
         const welcomeMsg: Message = {
           id: 'welcome',
           role: 'model',
@@ -69,19 +76,13 @@ function App() {
           timestamp: Date.now()
         };
         setMessages([welcomeMsg]);
+        
       } catch (error) {
         console.error("Failed to load data from DB:", error);
       }
     };
     loadData();
   }, []);
-
-  // Auto-scroll to bottom
-  useEffect(() => {
-    if (view === 'chat') {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages, view]);
 
   // Handle Data View Access
   const handleDataViewClick = () => {
@@ -104,6 +105,7 @@ function App() {
     }
   };
 
+  // Initial file handler from Uploader (Step 1)
   const handleFileSelected = (newFiles: UploadedFile[]) => {
     if (newFiles.length > 0) {
       setPendingFile(newFiles[0]);
@@ -117,6 +119,7 @@ function App() {
     }
   };
 
+  // Save pending file with metadata (Step 2)
   const savePendingFile = async () => {
     if (!pendingFile) return;
 
@@ -127,6 +130,7 @@ function App() {
 
     try {
       await db.addFile(fileWithMetadata);
+      // Check status again in case we switched mode
       setStorageMode(db.getConnectionStatus());
       
       setFiles(prev => [...prev, fileWithMetadata]);
@@ -161,6 +165,8 @@ function App() {
     setInputValue('');
     setIsProcessing(true);
     
+    // We do NOT save messages to DB anymore (Session only)
+
     const loadingId = crypto.randomUUID();
     const loadingMsg: Message = {
       id: loadingId,
@@ -186,12 +192,10 @@ function App() {
       setMessages(prev => prev.map(m => m.id === loadingId ? finalModelMsg : m));
 
     } catch (error) {
-      // Este catch agora é menos provável de ser ativado, pois o geminiService trata a maioria dos erros
-      // e retorna uma mensagem de erro formatada.
       const errorMsg: Message = {
         id: loadingId,
         role: 'model',
-        text: "Desculpe, ocorreu um erro inesperado na aplicação.",
+        text: "Desculpe, ocorreu um erro ao se conectar com o modelo ou processar os dados.",
         timestamp: Date.now()
       };
       setMessages(prev => prev.map(m => m.id === loadingId ? errorMsg : m));
@@ -269,6 +273,7 @@ function App() {
           >
             {isAuthenticated ? <Database size={16} /> : <Lock size={16} />}
             <span className="hidden md:inline">Dados</span>
+            {/* Indicador laranja sem número */}
             {files.length > 0 && (
               <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-amber-500 shadow-sm animate-pulse"></span>
             )}
@@ -282,37 +287,52 @@ function App() {
         {/* --- CHAT VIEW --- */}
         <div className={`absolute inset-0 flex flex-col transition-transform duration-300 ${view === 'chat' ? 'translate-x-0' : '-translate-x-full'}`}>
           
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth pb-8">
-            <div className="max-w-4xl mx-auto">
-              {files.length === 0 && messages.length < 2 && (
-                <div className="mt-8 mb-8 p-8 bg-slate-900/50 border border-slate-800 rounded-2xl text-center">
-                  <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Database className="w-8 h-8 text-slate-500" />
+          {/* Messages com Virtualização */}
+          <div className="flex-1 overflow-hidden p-0">
+             <div className="h-full w-full">
+              {files.length === 0 && messages.length < 2 ? (
+                <div className="flex h-full items-center justify-center p-4">
+                  <div className="p-8 bg-slate-900/50 border border-slate-800 rounded-2xl text-center max-w-md">
+                    <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Database className="w-8 h-8 text-slate-500" />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-200">Bem-vindo ao Gonçalinho!</h3>
+                    <p className="text-slate-400 mt-2 mb-6">
+                      Para começar a análise, você precisa fornecer as bases de dados. Eu aceito arquivos CSV, Excel, PDF e outros.
+                    </p>
+                    <button 
+                      onClick={handleDataViewClick}
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-xl font-medium inline-flex items-center gap-2 transition-all shadow-lg shadow-emerald-900/20 hover:scale-105"
+                    >
+                      <Upload size={18} />
+                      Carregar Arquivos
+                    </button>
                   </div>
-                  <h3 className="text-xl font-bold text-slate-200">Bem-vindo ao Gonçalinho!</h3>
-                  <p className="text-slate-400 mt-2 mb-6 max-w-md mx-auto">
-                    Para começar a análise, você precisa fornecer as bases de dados. Eu aceito arquivos CSV, Excel, PDF e outros.
-                  </p>
-                  <button 
-                    onClick={handleDataViewClick}
-                    className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-xl font-medium inline-flex items-center gap-2 transition-all shadow-lg shadow-emerald-900/20 hover:scale-105"
-                  >
-                    <Upload size={18} />
-                    Carregar Arquivos
-                  </button>
                 </div>
+              ) : (
+                <Virtuoso
+                  ref={virtuosoRef}
+                  data={messages}
+                  initialTopMostItemIndex={messages.length - 1}
+                  followOutput="auto"
+                  alignToBottom={true}
+                  className="h-full w-full custom-scrollbar"
+                  atBottomThreshold={60}
+                  itemContent={(index, msg) => (
+                    <div className="px-4 md:px-6 py-2 max-w-4xl mx-auto">
+                      <ChatMessage message={msg} />
+                    </div>
+                  )}
+                  components={{
+                    Footer: () => <div className="h-4" /> // Espaço extra no final
+                  }}
+                />
               )}
-              
-              {messages.map(msg => (
-                <ChatMessage key={msg.id} message={msg} />
-              ))}
-              <div ref={messagesEndRef} />
-            </div>
+             </div>
           </div>
 
           {/* Input Area */}
-          <div className="p-4 bg-slate-950 border-t border-slate-800">
+          <div className="p-4 bg-slate-950 border-t border-slate-800 shrink-0">
             <div className="max-w-4xl mx-auto relative">
               <textarea
                 value={inputValue}
