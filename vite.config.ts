@@ -30,7 +30,11 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       outDir: 'dist',
-      sourcemap: false
+      sourcemap: false,
+      // Garante que o index.html seja o ponto de entrada principal
+      rollupOptions: {
+        input: 'index.html'
+      }
     }
   };
 });
