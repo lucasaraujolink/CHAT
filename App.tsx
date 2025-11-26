@@ -277,10 +277,9 @@ function App() {
           >
             {isAuthenticated ? <Database size={16} /> : <Lock size={16} />}
             <span className="hidden md:inline">Dados</span>
+            {/* Indicador laranja sem número */}
             {files.length > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-slate-900 text-[10px] font-bold shadow-sm">
-                {files.length}
-              </span>
+              <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-amber-500 shadow-sm animate-pulse"></span>
             )}
           </button>
         </div>
