@@ -1,1 +1,9 @@
-��^�j�W�v+-u�Z������á����|hrG��	����^n薈
+node_modules
+dist
+data
+.env
+.git
+.github
+Dockerfile
+.dockerignore
+npm-debug.log
