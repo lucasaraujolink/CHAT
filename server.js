@@ -13,13 +13,12 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Define Data Directory
-// Em produção (Docker), isso mapeia para o volume montado
 const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 
 // Middleware
 app.use(cors());
-app.use(bodyParser.json({ limit: '50mb' })); // Limite aumentado para arquivos grandes
+app.use(bodyParser.json({ limit: '50mb' }));
 
 // --- DATABASE SETUP ---
 
@@ -32,7 +31,8 @@ const initializeDb = () => {
 
     if (!fs.existsSync(DB_FILE)) {
       console.log(`[Server] Criando arquivo DB: ${DB_FILE}`);
-      const initialData = { files: [], messages: [] };
+      // Apenas files, sem messages
+      const initialData = { files: [] };
       fs.writeFileSync(DB_FILE, JSON.stringify(initialData, null, 2), 'utf8');
     }
   } catch (err) {
@@ -45,12 +45,12 @@ initializeDb();
 // Helper to read DB
 const readDb = () => {
   try {
-    if (!fs.existsSync(DB_FILE)) return { files: [], messages: [] };
+    if (!fs.existsSync(DB_FILE)) return { files: [] };
     const data = fs.readFileSync(DB_FILE, 'utf8');
     return JSON.parse(data);
   } catch (err) {
     console.error("[Server] Erro leitura DB:", err);
-    return { files: [], messages: [] };
+    return { files: [] };
   }
 };
 
@@ -85,7 +85,7 @@ app.post('/files', (req, res) => {
   if (!db.files.some(f => f.id === newFile.id)) {
     db.files.push(newFile);
     writeDb(db);
-    console.log(`[Server] Arquivo salvo: ${newFile.name} (Categoria: ${newFile.category})`);
+    console.log(`[Server] Arquivo salvo: ${newFile.name}`);
   }
   
   res.status(201).json(newFile);
@@ -100,25 +100,10 @@ app.delete('/files/:id', (req, res) => {
   res.json({ success: true });
 });
 
-app.get('/messages', (req, res) => {
-  const db = readDb();
-  res.json(db.messages || []);
-});
-
-app.post('/messages', (req, res) => {
-  const newMessage = req.body;
-  const db = readDb();
-  db.messages.push(newMessage);
-  writeDb(db);
-  res.status(201).json(newMessage);
-});
-
 // --- SERVING FRONTEND ---
-// Serve os arquivos estáticos do React (pasta dist)
 const distPath = path.join(__dirname, 'dist');
 app.use(express.static(distPath));
 
-// Qualquer outra rota retorna o index.html para o React Router funcionar
 app.get('*', (req, res) => {
   if (fs.existsSync(path.join(distPath, 'index.html'))) {
     res.sendFile(path.join(distPath, 'index.html'));
