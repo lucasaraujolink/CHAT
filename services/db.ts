@@ -2,20 +2,19 @@ import { UploadedFile, Message } from '../types';
 import Dexie, { type Table } from 'dexie';
 
 // --- CONFIGURAÇÃO DA API ---
-// No Docker/Produção, a API está no mesmo host (caminho relativo)
-// No Local, tentamos usar a variável ou localhost
+// O Vite substitui import.meta.env durante o build.
+// Se VITE_API_URL não estiver definido, usamos string vazia, o que cria URLs relativas (ex: /files)
+// URLs relativas funcionam automaticamente tanto no Proxy local quanto no servidor de produção.
 const ENV_API_URL = (import.meta as any).env?.VITE_API_URL;
-const BASE_API_URL = ENV_API_URL || ''; // Vazio = relativo (mesmo domínio)
+const BASE_API_URL = ENV_API_URL || ''; 
 
-// --- CONFIGURAÇÃO DO DEXIE (LOCAL DB) ---
+// --- CONFIGURAÇÃO DO DEXIE (LOCAL DB - APENAS BACKUP) ---
 class LocalDatabase extends Dexie {
   files!: Table<UploadedFile, string>;
   messages!: Table<Message, string>;
 
   constructor() {
     super('GoncalinhoDB');
-    // Using cast to avoid TypeScript error 'Property version does not exist on type LocalDatabase'
-    // This can happen due to Dexie type definition mismatches in some environments
     (this as any).version(1).stores({
       files: 'id, timestamp, category',
       messages: 'id, timestamp'
@@ -25,63 +24,74 @@ class LocalDatabase extends Dexie {
 
 const localDb = new LocalDatabase();
 
-// --- CLASSE HÍBRIDA ---
-class HybridDatabase {
-  private useLocal: boolean = false;
+// --- CLASSE DE GERENCIAMENTO DE DADOS ---
+class DatabaseService {
+  private isOffline: boolean = false;
   
-  constructor() {
-    // Se estiver rodando em localhost sem porta definida, pode assumir local dev
-    // Mas vamos deixar a detecção automática baseada em erro
+  constructor() {}
+
+  // Retorna se estamos rodando na nuvem ou localmente baseado na última requisição
+  getConnectionStatus(): 'cloud' | 'local' {
+    return this.isOffline ? 'local' : 'cloud';
   }
 
-  // Helper para verificar status
-  getConnectionStatus(): 'cloud' | 'local' {
-    return this.useLocal ? 'local' : 'cloud';
+  private async tryServer(endpoint: string, options?: RequestInit): Promise<any> {
+    try {
+      const url = `${BASE_API_URL}${endpoint}`;
+      const response = await fetch(url, options);
+      
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}`);
+      }
+      
+      this.isOffline = false; // Sucesso, servidor está online
+      
+      // Se tiver conteúdo JSON, retorna. Se for DELETE/sem corpo, retorna null.
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.indexOf("application/json") !== -1) {
+        return await response.json();
+      }
+      return null;
+
+    } catch (error) {
+      console.warn(`Falha na conexão com servidor (${endpoint}):`, error);
+      this.isOffline = true;
+      throw error; // Repassa o erro para o fallback pegar
+    }
   }
 
   // --- ARQUIVOS ---
 
   async getAllFiles(): Promise<UploadedFile[]> {
     try {
-      if (this.useLocal) throw new Error("Force Local");
-      
-      const response = await fetch(`${BASE_API_URL}/files`);
-      if (!response.ok) throw new Error('Falha API');
-      return await response.json();
+      // Tenta Nuvem
+      const data = await this.tryServer('/files');
+      return data;
     } catch (error) {
-      console.warn("API offline, using Local DB for Files");
-      this.useLocal = true;
+      // Fallback Local
       return await localDb.files.toArray();
     }
   }
 
   async addFile(file: UploadedFile): Promise<void> {
     try {
-      if (this.useLocal) throw new Error("Force Local");
-
-      const response = await fetch(`${BASE_API_URL}/files`, {
+      // Tenta salvar na Nuvem (CRÍTICO para base de conhecimento compartilhada)
+      await this.tryServer('/files', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(file)
       });
-      if (!response.ok) throw new Error('Falha API');
     } catch (error) {
-      console.warn("API offline, saving File locally");
-      this.useLocal = true;
+      // Se falhar, salva local e avisa no console
+      console.error("Servidor inacessível. Salvando apenas localmente.");
       await localDb.files.add(file);
     }
   }
 
   async deleteFile(id: string): Promise<void> {
     try {
-      if (this.useLocal) throw new Error("Force Local");
-
-      const response = await fetch(`${BASE_API_URL}/files/${id}`, {
-        method: 'DELETE'
-      });
-      if (!response.ok) throw new Error('Falha API');
+      await this.tryServer(`/files/${id}`, { method: 'DELETE' });
     } catch (error) {
-      this.useLocal = true;
       await localDb.files.delete(id);
     }
   }
@@ -90,33 +100,30 @@ class HybridDatabase {
 
   async getAllMessages(): Promise<Message[]> {
     try {
-      if (this.useLocal) throw new Error("Force Local");
-
-      const response = await fetch(`${BASE_API_URL}/messages`);
-      if (!response.ok) throw new Error('Falha API');
-      return await response.json();
+      return await this.tryServer('/messages');
     } catch (error) {
-      console.warn("API offline, using Local DB for Messages");
-      this.useLocal = true;
       return await localDb.messages.orderBy('timestamp').toArray();
     }
   }
 
   async addMessage(message: Message): Promise<void> {
-    try {
-      if (this.useLocal) throw new Error("Force Local");
+    // Para mensagens, usamos uma estratégia "otimista".
+    // Salvamos localmente imediatamente para a UI ser rápida, e tentamos enviar para o servidor.
+    
+    // 1. Salva local (garante histórico imediato na sessão)
+    await localDb.messages.add(message);
 
-      const response = await fetch(`${BASE_API_URL}/messages`, {
+    // 2. Tenta sincronizar com servidor em background
+    try {
+      await this.tryServer('/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(message)
       });
-      if (!response.ok) throw new Error('Falha API');
     } catch (error) {
-      this.useLocal = true;
-      await localDb.messages.add(message);
+      // Silencioso: se falhar o server, pelo menos está no localDb
     }
   }
 }
 
-export const db = new HybridDatabase();
+export const db = new DatabaseService();
