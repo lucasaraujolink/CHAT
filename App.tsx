@@ -238,8 +238,9 @@ function App() {
       <header className="h-16 border-b border-slate-800 bg-slate-900 flex items-center justify-between px-6 shrink-0 relative z-10 shadow-md">
         <div className="flex items-center gap-3">
           <div className="relative w-10 h-10 flex items-center justify-center">
-             <img 
-              src="https://drive.google.com/drive-viewer/AKGpihbQ4aIMgJE4xa6C4P0e2Ifn4rtCrzRFhV4An3bkRRgFn8zaiUn75N_wEJlKk-AOrjLrLVKYhXiBNPU5RQ7u8ZdffHiJ8vM-eg=w1960-h1854?auditContext=forDisplay" 
+            {/* Certifique-se que o arquivo brasao.png está na pasta 'public' */}
+            <img 
+              src="/brasao.png" 
               alt="Brasão" 
               className="w-full h-full object-contain drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]"
             />
