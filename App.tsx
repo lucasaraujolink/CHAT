@@ -54,30 +54,26 @@ function App() {
     category: 'Geral'
   });
 
-  // Load initial data from DB
+  // Load initial data from DB (FILES ONLY)
   useEffect(() => {
     const loadData = async () => {
       try {
         const loadedFiles = await db.getAllFiles();
-        const loadedMessages = await db.getAllMessages();
         
         // Update connection status based on what the DB service decided
         setStorageMode(db.getConnectionStatus());
 
         setFiles(loadedFiles);
         
-        if (loadedMessages.length > 0) {
-          setMessages(loadedMessages);
-        } else {
-          // Default welcome message if DB is empty
-          const welcomeMsg: Message = {
-            id: 'welcome',
-            role: 'model',
-            text: 'Olá! Sou o **Gonçalinho**, seu especialista em indicadores. \n\nPara começar, vá até a página de upload e adicione seus arquivos (CSV, XLSX, PDF, etc). Não se esqueça de preencher os detalhes de cada arquivo para que eu possa fazer análises precisas e cruzamentos de dados!',
-            timestamp: Date.now()
-          };
-          setMessages([welcomeMsg]);
-        }
+        // Chat is always fresh (Session based)
+        const welcomeMsg: Message = {
+          id: 'welcome',
+          role: 'model',
+          text: 'Olá! Sou o **Gonçalinho**, seu especialista em indicadores. \n\nMeus dados são baseados nos arquivos carregados na "Central de Dados". Como posso ajudar você hoje?',
+          timestamp: Date.now()
+        };
+        setMessages([welcomeMsg]);
+        
       } catch (error) {
         console.error("Failed to load data from DB:", error);
       }
@@ -173,8 +169,7 @@ function App() {
     setInputValue('');
     setIsProcessing(true);
     
-    // Fire and forget save
-    db.addMessage(userMsg).then(() => setStorageMode(db.getConnectionStatus()));
+    // We do NOT save messages to DB anymore (Session only)
 
     const loadingId = crypto.randomUUID();
     const loadingMsg: Message = {
@@ -199,9 +194,6 @@ function App() {
       };
 
       setMessages(prev => prev.map(m => m.id === loadingId ? finalModelMsg : m));
-      
-      await db.addMessage(finalModelMsg);
-      setStorageMode(db.getConnectionStatus());
 
     } catch (error) {
       const errorMsg: Message = {
@@ -211,7 +203,6 @@ function App() {
         timestamp: Date.now()
       };
       setMessages(prev => prev.map(m => m.id === loadingId ? errorMsg : m));
-      await db.addMessage(errorMsg);
     } finally {
       setIsProcessing(false);
     }
@@ -255,9 +246,10 @@ function App() {
       <header className="h-16 border-b border-slate-800 bg-slate-900 flex items-center justify-between px-6 shrink-0 relative z-10 shadow-md">
         <div className="flex items-center gap-3">
           <div className="relative w-10 h-10 flex items-center justify-center">
+            {/* Certifique-se que o arquivo brasao.png está na pasta 'public' */}
             <img 
               src="/brasao.png" 
-              alt="Brasão São Gonçalo dos Campos" 
+              alt="Brasão" 
               className="w-full h-full object-contain drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]"
             />
           </div>
@@ -362,7 +354,7 @@ function App() {
                {/* Storage Status Indicator */}
                <div className={`flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-full border ${storageMode === 'cloud' ? 'border-emerald-900 bg-emerald-950/50 text-emerald-500' : 'border-orange-900 bg-orange-950/50 text-orange-500'}`}>
                   {storageMode === 'cloud' ? <Cloud size={10} /> : <CloudOff size={10} />}
-                  <span className="font-semibold">{storageMode === 'cloud' ? 'Nuvem' : 'Local'}</span>
+                  <span className="font-semibold">{storageMode === 'cloud' ? 'Base: Nuvem' : 'Base: Local'}</span>
                </div>
             </div>
           </div>
