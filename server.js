@@ -115,11 +115,16 @@ app.post('/messages', (req, res) => {
 
 // --- SERVING FRONTEND ---
 // Serve os arquivos estáticos do React (pasta dist)
-app.use(express.static(path.join(__dirname, 'dist')));
+const distPath = path.join(__dirname, 'dist');
+app.use(express.static(distPath));
 
 // Qualquer outra rota retorna o index.html para o React Router funcionar
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+  if (fs.existsSync(path.join(distPath, 'index.html'))) {
+    res.sendFile(path.join(distPath, 'index.html'));
+  } else {
+    res.status(404).send("Erro: Build do frontend não encontrado (index.html ausente na pasta dist).");
+  }
 });
 
 app.listen(PORT, () => {
