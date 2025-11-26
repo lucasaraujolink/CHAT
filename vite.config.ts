@@ -1,9 +1,11 @@
+
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-  // Carrega as variáveis de ambiente baseadas no modo atual
+  // Carrega as variáveis de ambiente baseadas no modo atual (development/production)
+  // O terceiro argumento '' garante que carregue todas as vars, não apenas VITE_
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
@@ -13,7 +15,8 @@ export default defineConfig(({ mode }) => {
       'process.env.API_KEY': JSON.stringify(env.API_KEY)
     },
     server: {
-      // Proxy para desenvolvimento local
+      // Configuração de Proxy para desenvolvimento local
+      // Redireciona chamadas do frontend (5173) para o backend (3001)
       proxy: {
         '/files': {
           target: 'http://localhost:3001',
@@ -31,11 +34,6 @@ export default defineConfig(({ mode }) => {
           secure: false,
         }
       }
-    },
-    // Otimização para build
-    build: {
-      outDir: 'dist',
-      sourcemap: false
     }
   };
 });
