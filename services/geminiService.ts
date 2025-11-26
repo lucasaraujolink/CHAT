@@ -44,7 +44,13 @@ INSTRUÇÕES CRÍTICAS PARA ANÁLISE:
 1. Use APENAS os dados fornecidos acima.
 2. Tente corrigir erros de OCR/digitação (ex: "Gonalo" -> "Gonçalo").
 3. Para perguntas de totais anuais: Identifique as colunas mensais e SOME os valores. Mostre o cálculo.
-4. Para taxas: (Total / População) * 1000 (ou conforme padrão do indicador).
+4. Para taxas (ex: incidência): (Total / População) * 1000 (ou conforme padrão do indicador).
+5. NUNCA invente números. Use apenas os dados fornecidos acima.
+
+FORMATO DE RESPOSTA - SEJA CONCISO:
+❌ NÃO liste todos os meses ou valores intermediários a menos que seja explicitamente solicitado.
+✅ Vá direto ao ponto: responda a pergunta de forma objetiva.
+✅ Exemplo bom: "O mês com mais ocorrências foi dezembro de 2022, com 3 casos."
 
 GERAÇÃO DE GRÁFICOS:
 Se pedido gráfico, retorne JSON PURO neste formato:
