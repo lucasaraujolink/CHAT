@@ -2,22 +2,17 @@ import { UploadedFile, Message } from '../types';
 import Dexie, { type Table } from 'dexie';
 
 // --- CONFIGURAÇÃO DA API ---
-// O Vite substitui import.meta.env durante o build.
-// Se VITE_API_URL não estiver definido, usamos string vazia, o que cria URLs relativas (ex: /files)
-// URLs relativas funcionam automaticamente tanto no Proxy local quanto no servidor de produção.
 const ENV_API_URL = (import.meta as any).env?.VITE_API_URL;
 const BASE_API_URL = ENV_API_URL || ''; 
 
 // --- CONFIGURAÇÃO DO DEXIE (LOCAL DB - APENAS BACKUP) ---
 class LocalDatabase extends Dexie {
   files!: Table<UploadedFile, string>;
-  messages!: Table<Message, string>;
-
+  
   constructor() {
     super('GoncalinhoDB');
     (this as any).version(1).stores({
       files: 'id, timestamp, category',
-      messages: 'id, timestamp'
     });
   }
 }
@@ -46,7 +41,6 @@ class DatabaseService {
       
       this.isOffline = false; // Sucesso, servidor está online
       
-      // Se tiver conteúdo JSON, retorna. Se for DELETE/sem corpo, retorna null.
       const contentType = response.headers.get("content-type");
       if (contentType && contentType.indexOf("application/json") !== -1) {
         return await response.json();
@@ -56,7 +50,7 @@ class DatabaseService {
     } catch (error) {
       console.warn(`Falha na conexão com servidor (${endpoint}):`, error);
       this.isOffline = true;
-      throw error; // Repassa o erro para o fallback pegar
+      throw error; 
     }
   }
 
@@ -82,7 +76,7 @@ class DatabaseService {
         body: JSON.stringify(file)
       });
     } catch (error) {
-      // Se falhar, salva local e avisa no console
+      // Se falhar, salva local e avisa
       console.error("Servidor inacessível. Salvando apenas localmente.");
       await localDb.files.add(file);
     }
@@ -93,35 +87,6 @@ class DatabaseService {
       await this.tryServer(`/files/${id}`, { method: 'DELETE' });
     } catch (error) {
       await localDb.files.delete(id);
-    }
-  }
-
-  // --- MENSAGENS ---
-
-  async getAllMessages(): Promise<Message[]> {
-    try {
-      return await this.tryServer('/messages');
-    } catch (error) {
-      return await localDb.messages.orderBy('timestamp').toArray();
-    }
-  }
-
-  async addMessage(message: Message): Promise<void> {
-    // Para mensagens, usamos uma estratégia "otimista".
-    // Salvamos localmente imediatamente para a UI ser rápida, e tentamos enviar para o servidor.
-    
-    // 1. Salva local (garante histórico imediato na sessão)
-    await localDb.messages.add(message);
-
-    // 2. Tenta sincronizar com servidor em background
-    try {
-      await this.tryServer('/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(message)
-      });
-    } catch (error) {
-      // Silencioso: se falhar o server, pelo menos está no localDb
     }
   }
 }
