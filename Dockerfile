@@ -1,7 +1,7 @@
 # Usa imagem leve do Node.js 20
 FROM node:20-alpine
 
-# Define diretório de trabalho
+# Diretório de trabalho
 WORKDIR /app
 
 # Copia arquivos de dependência
@@ -13,17 +13,16 @@ RUN npm cache clean --force && npm install
 # Copia todo o código fonte
 COPY . .
 
-# Evita warnings de secrets: API_KEY será lida via variável de ambiente no painel
-# ARG API_KEY
-# ENV API_KEY=$API_KEY
-
-# Executa build do React/Vite
+# Build do React/Vite
 RUN npm run build
 
-# Porta que o container vai escutar
-# Easypanel geralmente fornece a variável PORT, então usamos ela
+# Porta do container fornecida pelo Easypanel
 ENV PORT=80
 EXPOSE $PORT
 
-# Comando para iniciar o servidor Node
+# Diretório para armazenar dados (DB e uploads)
+ENV DATA_DIR=/app/data
+VOLUME ["/app/data"]
+
+# Comando principal: Node rodando em foreground
 CMD ["node", "server.js"]
